@@ -10,7 +10,28 @@
       utils,
     }:
     let
-      overlays.default = final: prev: { falco = prev.callPackage ./falco.nix { }; };
+      falcoForLinuxPackages = pkgs: lp: pkgs.callPackage ./falco.nix { linuxPackages = pkgs.${lp}; };
+
+      allLinuxPackagesInPkgs =
+        pkgs: (builtins.filter (name: pkgs.lib.hasPrefix "linuxPackages" name) (builtins.attrNames pkgs));
+      falcoForAllLinuxPackages =
+        pkgs:
+        pkgs.lib.genAttrs (allLinuxPackagesInPkgs pkgs) (
+          lp:
+          pkgs.${lp}
+          // {
+            falco = falcoForLinuxPackages pkgs lp;
+          }
+        );
+
+      overlays.default =
+        final: prev:
+        (
+          {
+            falco = prev.callPackage ./falco.nix { };
+          }
+          // (falcoForAllLinuxPackages prev)
+        );
 
       flake = utils.lib.eachDefaultSystem (
         system:
