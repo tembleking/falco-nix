@@ -9,32 +9,37 @@
       nixpkgs,
       utils,
     }:
-    utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          config.allowUnfree = true;
-        };
+    let
+      overlays.default = final: prev: { falco = prev.callPackage ./falco.nix { }; };
 
-        falco = pkgs.callPackage ./falco.nix { };
-      in
-      {
-        packages = {
-          inherit falco;
-          default = falco;
-        };
-        devShells.default =
-          with pkgs;
-          mkShell {
-            buildInputs = [
-              # Add here dependencies for the project.
-              cmake
-              cmake-language-server
-            ];
+      flake = utils.lib.eachDefaultSystem (
+        system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+            overlays = [ self.overlays.default ];
+          };
+        in
+        {
+          packages = with pkgs; {
+            inherit falco;
+            default = falco;
           };
 
-        formatter = pkgs.alejandra;
-      }
-    );
+          devShells.default =
+            with pkgs;
+            mkShell {
+              packages = [
+                # Add here dependencies for the project.
+                cmake-language-server
+              ];
+              inputsFrom = [ falco ];
+            };
+
+          formatter = pkgs.nixfmt-rfc-style;
+        }
+      );
+    in
+    flake // { inherit overlays; };
 }
